@@ -39,6 +39,11 @@ fn main() -> Result<()> {
                         .help("Load the application to RAM instead of Flash"),
                 )
                 .arg(
+                    Arg::with_name("direct_boot")
+                        .long("direct-boot")
+                        .help("Load the application without bootloader (only ESP32C3)")
+                )
+                .arg(
                     Arg::with_name("release")
                         .long("release")
                         .help("Build the application using the release profile"),
@@ -191,6 +196,8 @@ fn main() -> Result<()> {
     let elf_data = fs::read(path.unwrap()).into_diagnostic()?;
     if matches.is_present("ram") {
         flasher.load_elf_to_ram(&elf_data)?;
+    } else if matches.is_present("direct_boot") {
+        flasher.load_elf_without_bootloader(&elf_data)?;
     } else {
         flasher.load_elf_to_flash(&elf_data, bootloader, partition_table)?;
     }

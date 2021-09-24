@@ -523,6 +523,24 @@ impl Flasher {
         Ok(())
     }
 
+    pub fn load_elf_without_bootloader(&mut self, elf_data: &[u8]) -> Result<(), Error> {
+        let mut image = FirmwareImage::from_data(elf_data).map_err(ElfError::from)?;
+        image.flash_size = self.flash_size();
+
+        let mut target = self.chip.flash_target(self.spi_params);
+        target.begin(&mut self.connection, &image).flashing()?;
+
+        let segment = self.chip.get_direct_boot_flash_image(&image)?;
+        target
+            .write_segment(&mut self.connection, segment)
+            .flashing()?;
+
+        target.finish(&mut self.connection, true).flashing()?;
+
+
+        Ok(())
+    }
+
     pub fn change_baud(&mut self, speed: BaudRate) -> Result<(), Error> {
         let new_speed = (speed.speed() as u32).to_le_bytes();
         let old_speed = 0u32.to_le_bytes();

@@ -45,6 +45,8 @@ pub enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
     MalformedPartitionTable(#[from] PartitionTableError),
+    #[error("Chip does not support direct boot")]
+    UnsupportedDirectBoot,
 }
 
 #[derive(Error, Debug, Diagnostic)]

@@ -132,6 +132,16 @@ impl Chip {
         }
     }
 
+    pub fn get_direct_boot_flash_image<'a>(
+        &self,
+        image: &'a FirmwareImage,
+    ) -> Result<RomSegment<'a>,Error> {
+        match self {
+            Chip::Esp32c3 => Esp32c3::get_direct_boot_flash_image(image),
+            _ => Err(Error::UnsupportedDirectBoot),
+        }
+    }
+
     pub fn addr_is_flash(&self, addr: u32) -> bool {
         match self {
             Chip::Esp32 => Esp32::addr_is_flash(addr),
