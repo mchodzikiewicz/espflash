@@ -1,4 +1,4 @@
-use crate::chip::esp32::get_data;
+use crate::chip::esp32::{get_data, get_direct_boot_data};
 use crate::{
     chip::{ChipType, SpiRegisters},
     elf::{FirmwareImage, RomSegment},
@@ -80,5 +80,14 @@ impl ChipType for Esp32c3 {
             })))
             .chain(once(get_data(image, 5, Chip::Esp32c3))),
         )
+    }
+}
+
+impl Esp32c3 {
+    pub fn get_direct_boot_flash_image<'a>(
+        image: &'a FirmwareImage
+    ) -> Result<RomSegment<'a>,Error>
+    {
+        get_direct_boot_data(image, Chip::Esp32c3)
     }
 }

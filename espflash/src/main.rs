@@ -1,7 +1,7 @@
 use std::fs::{read, read_to_string};
 
-use espflash::{Config, Error, Flasher, PartitionTable};
-use miette::{IntoDiagnostic, Result, WrapErr};
+use espflash::{Config, Error, Flasher, PartitionTable, Chip};
+use miette::{IntoDiagnostic, Result, WrapErr, ErrReport};
 use pico_args::Arguments;
 use serial::{BaudRate, FlowControl, SerialPort};
 
@@ -19,6 +19,7 @@ fn main() -> Result<()> {
         return help();
     }
 
+    let direct_boot = args.contains(["-d", "--direct-boot"]);
     let ram = args.contains("--ram");
     let board_info = args.contains("--board-info");
     let bootloader_path = args
@@ -69,6 +70,13 @@ fn main() -> Result<()> {
     let input_bytes = read(&input)
         .into_diagnostic()
         .wrap_err_with(|| format!("Failed to open elf image \"{}\"", input))?;
+
+    if direct_boot {
+        match flasher.chip() {
+            Chip::Esp32c3 => flasher.load_elf_without_bootloader(&input_bytes)?,
+            _ => return Err(ErrReport::msg("Failed to flash: Only ESP32C3 chip supports direct boot!")),
+        }
+    }
 
     if ram {
         flasher.load_elf_to_ram(&input_bytes)?;

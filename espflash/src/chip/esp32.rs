@@ -11,6 +11,7 @@ use crate::{
 use bytemuck::bytes_of;
 use sha2::{Digest, Sha256};
 use std::{borrow::Cow, io::Write, iter::once};
+use std::fs::File;
 
 pub struct Esp32;
 
@@ -197,6 +198,68 @@ pub(crate) fn get_data<'a>(
 
     Ok(RomSegment {
         addr: APP_ADDR,
+        data: Cow::Owned(data),
+    })
+}
+
+// only supported for ESP32C3 at the moment
+pub(crate) fn get_direct_boot_data<'a>(
+    image: &'a FirmwareImage,
+    chip: Chip,
+) -> Result<RomSegment<'a>, Error> {
+    // let mut data = Vec::from([0x1d, 0x04, 0xdb, 0xae, 0x1d, 0x04, 0xdb, 0xae]);
+    let mut data = Vec::new();
+    let mut checksum = ESP_CHECKSUM_MAGIC;
+
+    let flash_segments: Vec<_> = merge_segments(image.rom_segments(chip).collect());
+    let mut ram_segments: Vec<_> = merge_segments(image.ram_segments(chip).collect());
+
+    let mut segment_count = 0;
+
+    for segment in flash_segments {
+        loop {
+            let pad_len = get_segment_padding(data.len(), &segment);
+            if pad_len > 0 {
+                if pad_len > SEG_HEADER_LEN {
+                    if let Some(ram_segment) = ram_segments.first_mut() {
+                        // save up to `pad_len` from the ram segment, any remaining bits in the ram segments will be saved later
+                        let pad_segment = ram_segment.split_off(pad_len as usize);
+                        checksum = save_segment(&mut data, &pad_segment, checksum)?;
+                        if ram_segment.data().is_empty() {
+                            ram_segments.remove(0);
+                        }
+                        segment_count += 1;
+                        continue;
+                    }
+                }
+                let pad_header = SegmentHeader {
+                    addr: 0,
+                    length: pad_len as u32,
+                };
+                data.write_all(bytes_of(&pad_header))?;
+                for _ in 0..pad_len {
+                    data.write_all(&[0])?;
+                }
+                segment_count += 1;
+            } else {
+                break;
+            }
+        }
+        checksum = save_flash_segment(&mut data, &segment, checksum)?;
+        segment_count += 1;
+    }
+
+    for segment in ram_segments {
+        checksum = save_segment(&mut data, &segment, checksum)?;
+        segment_count += 1;
+    }
+    data[1] = segment_count as u8;
+
+    let mut file = File::create("dump").unwrap();
+    file.write_all(data.as_slice()).unwrap();
+
+    Ok(RomSegment {
+        addr: 0,
         data: Cow::Owned(data),
     })
 }
